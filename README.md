@@ -26,9 +26,9 @@ To run the GitHub application, it needs to be installed in your github project
 and configured. You can then run it, adapting the following command:
 
 ```bash
-deploy-rocq-prover_org --github-app-id 1100037 
-  --github-account-allowlist=coq
-  --github-private-key-file private_key 
+deploy-rocq-prover_org --github-app-id 1100037 \
+  --github-account-allowlist=coq \
+  --github-private-key-file private_key  \
   --github-webhook-secret-file webhook_secret
 ```
 
