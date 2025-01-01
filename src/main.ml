@@ -95,7 +95,7 @@ let main config mode app =
 open Cmdliner
 
 let cmd =
-  let doc = "Monitor rocq/rocq-prover.org and rocq/doc repositories." in
+  let doc = "Monitors rocq/rocq-prover.org and rocq/doc repositories and deploy the website." in
   let info = Cmd.info program_name ~doc in
   Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.App.cmdliner))
 

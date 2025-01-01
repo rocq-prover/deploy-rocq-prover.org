@@ -23,6 +23,8 @@
   (current (>= 0.6))
   current_git
   current_github
+  current_web
+  current_docker
   fmt
   lwt
   (cmdliner (>= 1.2.0)))
