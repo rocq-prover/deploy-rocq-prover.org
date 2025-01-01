@@ -12,7 +12,7 @@
 
 *)
 
-let program_name = "rocq-prover.org-deploy"
+let program_name = "deploy-rocq-prover_org"
 
 open Current.Syntax
 

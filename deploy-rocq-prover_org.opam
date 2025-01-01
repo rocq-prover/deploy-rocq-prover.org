@@ -7,9 +7,9 @@ maintainer: ["Matthieu Sozeau"]
 authors: ["Matthieu Sozeau"]
 license: "MIT"
 tags: ["rocq" "infra"]
-homepage: "https://github.com/coq/rocq-prover.org-deploy"
-doc: "https://github.com/coq/rocq-prover.org-deploy"
-bug-reports: "https://github.com/coq/rocq-prover.org-deploy/issues"
+homepage: "https://github.com/coq/deploy-rocq-prover.org"
+doc: "https://github.com/coq/deploy-rocq-prover.org"
+bug-reports: "https://github.com/coq/deploy-rocq-prover.org/issues"
 depends: [
   "dune" {>= "3.16"}
   "prometheus-app" {>= "1.0"}
@@ -35,4 +35,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/coq/rocq-prover.org-deploy.git"
+dev-repo: "git+https://github.com/coq/deploy-rocq-prover.org.git"

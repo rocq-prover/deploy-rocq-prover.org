@@ -1,11 +1,11 @@
 (lang dune 3.16)
 
-(name rocq_prover_org_deploy)
+(name deploy-rocq-prover_org)
 
 (generate_opam_files true)
 
 (source
- (github coq/rocq-prover.org-deploy))
+ (github coq/deploy-rocq-prover.org))
 
 (authors "Matthieu Sozeau")
 
@@ -13,10 +13,10 @@
 
 (license MIT)
 
-(documentation https://github.com/coq/rocq-prover.org-deploy)
+(documentation https://github.com/coq/deploy-rocq-prover.org)
 
 (package
- (name rocq_prover_org_deploy)
+ (name deploy-rocq-prover_org)
  (synopsis "OCurrent deploy script for rocq-prover.org")
  (description "OCurrent deploy script for rocq-prover.org rebuilding and launching the docker image")
  (depends (prometheus-app (>= 1.0))

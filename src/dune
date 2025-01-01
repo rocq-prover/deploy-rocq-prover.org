@@ -1,5 +1,5 @@
 (executable
- (public_name rocq_prover_org_deploy)
+ (public_name deploy-rocq-prover_org)
  (name main)
  (libraries
     current
