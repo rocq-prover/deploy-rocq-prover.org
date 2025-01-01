@@ -1,0 +1,11 @@
+(executable
+ (public_name rocq_prover_org_deploy)
+ (name main)
+ (libraries
+    current
+    current_git
+    current_github
+    current_web
+    current_docker
+    lwt.unix
+    prometheus-app.unix))
