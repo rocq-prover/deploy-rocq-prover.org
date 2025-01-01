@@ -14,6 +14,10 @@
 
 let program_name = "deploy-rocq-prover_org"
 
+let build_status = "Docker image build for rocq-prover.org"
+
+let deploy_status = " Deployment on rocq-prover.org"
+
 open Current.Syntax
 
 module Git = Current_git
@@ -44,17 +48,55 @@ let url = Uri.of_string "http://localhost:3000"
 (* let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) () *)
 
 (* Map from Current.state to CheckRunStatus *)
-let github_check_run_status_of_state ?job_id = function
-  | Ok _              -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id (`Completed `Success) ~summary:"Passed"
-  | Error (`Active _) -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id `Queued
-  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
+let github_check_run_status_of_state ?text ?job_id = function
+  | Ok _              -> Github.Api.CheckRunStatus.v ?text ~url ?identifier:job_id (`Completed `Success) ~summary:"Passed"
+  | Error (`Active _) -> Github.Api.CheckRunStatus.v ?text ~url ?identifier:job_id `Queued
+  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ?text ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
 
-let check_run_status x =
+let check_run_status ?text x =
   let+ md = Current.Analysis.metadata x
   and+ state = Current.state x in
   match md with
-  | Some { Current.Metadata.job_id; _ } -> github_check_run_status_of_state ?job_id state
-  | None -> github_check_run_status_of_state state
+  | Some { Current.Metadata.job_id; _ } -> github_check_run_status_of_state ?text ?job_id state
+  | None -> github_check_run_status_of_state ?text state
+  
+let read_whole_file filename =
+  (* open_in_bin works correctly on Unix and Windows *)
+  let ch = open_in (Fpath.to_string filename) in
+  let s = really_input_string ch (in_channel_length ch) in
+  close_in ch;
+  s
+
+
+module CC = Current_cache.Output(MyCompose)
+
+let compose ?(pull=true) ~docker_context ~compose_file ~name ~cwd ~contents () =
+  CC.set MyCompose.{ pull } { MyCompose.Key.name; docker_context; compose_file } 
+    { MyCompose.Value.cwd; MyCompose.Value.contents }
+
+let compose ?pull ~name ~cwd ~compose_file ~contents () =
+  Current.component "docker-compose@,%s" name |>
+  let> contents = contents in
+  compose ?pull ~docker_context:None ~name ~compose_file ~cwd ~contents ()
+
+let deploy head src = 
+  let branch = Current.map Github.Api.Commit.branch_name head in
+  let** br = branch in
+  match br with 
+  | Some "main" ->
+    Current.component "Deploy main" |> 
+    let** src = src in
+    let path = Git.Commit.repo src in
+    let fpath = Fpath.(append path (v "compose.yml")) in
+    let composefile =
+      if Sys.file_exists (Fpath.to_string fpath) then
+        Current.return (read_whole_file fpath)
+      else Current.fail "No compose.yml file in the repository"
+    in
+    compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name:"rocqproverorg_www" ~contents:composefile ()
+    |> check_run_status ~text:"Docker image built and deployed"
+    |> Github.Api.CheckRun.set_status head deploy_status  
+  | _ -> Current.return ()
 
 let pipeline ~app () =
   let dockerfile =
@@ -68,9 +110,10 @@ let pipeline ~app () =
   Github.Api.Repo.ci_refs ~staleness:(Duration.of_day 90) repo
   |> Current.list_iter (module Github.Api.Commit) @@ fun head ->
   let src = Git.fetch (Current.map Github.Api.Commit.id head) in
-  Docker.build ~pool ~pull:false ~dockerfile (`Git src)
-  |> check_run_status
-  |> Github.Api.CheckRun.set_status head program_name
+  Docker.build ~pool ~pull:true ~dockerfile (`Git src)
+  |> check_run_status ~text:"Docker image built"
+  |> Github.Api.CheckRun.set_status head build_status
+  |> fun cur -> Current.all [cur; Current.component "Deploy" |> deploy head src]
 
 let main config mode app =
   Lwt_main.run begin
