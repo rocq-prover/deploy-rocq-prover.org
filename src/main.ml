@@ -70,22 +70,19 @@ let read_whole_file filename =
 
 module CC = Current_cache.Output(MyCompose)
 
-let compose ?(pull=true) ~docker_context ~compose_file ~name ~cwd ~contents () =
-  CC.set MyCompose.{ pull } { MyCompose.Key.name; docker_context; compose_file } 
+let compose ?(pull=true) ~docker_context ~compose_file ~hash ~env ~name ~cwd ~contents () =
+  CC.set MyCompose.{ pull } { MyCompose.Key.name; docker_context; compose_file; env; hash } 
     { MyCompose.Value.cwd; MyCompose.Value.contents }
 
-let compose ?pull ~name ~cwd ~compose_file ~contents () =
+let compose ?pull ~name ~cwd ~compose_file ~hash ~env ~contents () =
   Current.component "docker-compose@,%s" name |>
   let> contents = contents in
-  compose ?pull ~docker_context:None ~name ~compose_file ~cwd ~contents ()
+  compose ?pull ~docker_context:None ~name ~compose_file ~env ~hash ~cwd ~contents ()
 
-let deploy head src = 
-  let branch = Current.map Github.Api.Commit.branch_name head in
-  let** br = branch in
-  match br with 
+let deploy src = 
+  let on_branch (doc_repo, (head, src)) = 
+  match Github.Api.Commit.branch_name head with
   | Some "main" ->
-    Current.component "Deploy main" |> 
-    let** src = src in
     let path = Git.Commit.repo src in
     let fpath = Fpath.(append path (v "compose.yml")) in
     let composefile =
@@ -93,10 +90,30 @@ let deploy head src =
         Current.return (read_whole_file fpath)
       else Current.fail "No compose.yml file in the repository"
     in
-    compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name:"rocqproverorg_www" ~contents:composefile ()
+    compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name:"rocqproverorg_www"
+      ~env:[| "DOC_PATH=" ^ Fpath.to_string doc_repo |]
+      ~hash:(Github.Api.Commit.hash head)
+      ~contents:composefile ()
     |> check_run_status ~text:"Docker image built and deployed"
-    |> Github.Api.CheckRun.set_status head deploy_status  
+    |> Github.Api.CheckRun.set_status (Current.return head) deploy_status  
   | _ -> Current.return ()
+  in
+  let** src = src in
+  on_branch src
+
+let coq_doc_repo = Github.Repo_id.{ owner = "coq"; name = "doc" }
+let rocq_prover_org_repo = Github.Repo_id.{ owner = "coq"; name = "rocq-prover.org" }
+let rocq_prover_org_repo installation : Github.Api.Repo.t = (installation, rocq_prover_org_repo)
+
+let get_rocq_doc_head installation = 
+  Current.component "get_rocq_doc_head" |> 
+  let** api = Current.map Github.Installation.api installation in
+  let doc_head = Github.Api.head_commit api coq_doc_repo in
+  let local_head = Git.fetch (Current.map Github.Api.Commit.id doc_head) in
+  Current.map (fun commit -> Git.Commit.repo commit) local_head
+
+let get_rocq_prover_org_repo installation = 
+  Current.map (fun installation -> rocq_prover_org_repo (Github.Installation.api installation)) installation
 
 let pipeline ~app () =
   let dockerfile =
@@ -105,15 +122,16 @@ let pipeline ~app () =
     | Error (`Msg s) -> failwith s
   in
   Github.App.installations app |> Current.list_iter (module Github.Installation) @@ fun installation ->
-  let repos = Github.Installation.repositories installation in
-  repos |> Current.list_iter ~collapse_key:"repo" (module Github.Api.Repo) @@ fun repo ->
-  Github.Api.Repo.ci_refs ~staleness:(Duration.of_day 90) repo
-  |> Current.list_iter (module Github.Api.Commit) @@ fun head ->
-  let src = Git.fetch (Current.map Github.Api.Commit.id head) in
-  Docker.build ~pool ~pull:true ~dockerfile (`Git src)
-  |> check_run_status ~text:"Docker image built"
-  |> Github.Api.CheckRun.set_status head build_status
-  |> fun cur -> Current.all [cur; Current.component "Deploy" |> deploy head src]
+    let rocq_doc_head = get_rocq_doc_head installation in
+    let repo = get_rocq_prover_org_repo installation in
+    Github.Api.Repo.ci_refs ~staleness:(Duration.of_day 90) repo
+    |> Current.list_iter (module Github.Api.Commit) @@ fun head ->
+    let src = Git.fetch (Current.map Github.Api.Commit.id head) in
+    let headsrc = Current.pair head src in
+    Docker.build ~pool ~pull:true ~dockerfile (`Git src)
+    |> check_run_status ~text:"Docker image built"
+    |> Github.Api.CheckRun.set_status head build_status
+    |> fun cur -> Current.all [cur; Current.component "Deploy" |> deploy (Current.pair rocq_doc_head headsrc)]
 
 let main config mode app =
   Lwt_main.run begin
