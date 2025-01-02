@@ -19,7 +19,6 @@ end
 module Value = struct
   type t = {
     cwd : string;
-    contents: string;
   } [@@deriving to_yojson]
 
   let digest t = Yojson.Safe.to_string (to_yojson t)
@@ -28,13 +27,13 @@ end
 module Outcome = Current.Unit
 
 let cmd args { Key.docker_context; name; hash = _; compose_file; env = _ } =
-  MyCmd.compose ~docker_context (["--build"; "--force-recreate"; "-f"; compose_file; "-p"; name ] @ args)
+  MyCmd.compose ~docker_context (["-f"; compose_file; "-p"; name ] @ args)
 
 let cmd_pull = cmd ["pull"]
 
-let cmd_update = cmd ["up"; "-d"]
+let cmd_update = cmd ["up"; "-d"; "--build"; "--force-recreate"]
 
-let publish { pull } job key {Value.cwd; Value.contents = _} =
+let publish { pull } job key {Value.cwd} =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
   let p =
     Current.Job.log job "Working directory: %S" cwd;
@@ -52,7 +51,7 @@ let publish { pull } job key {Value.cwd; Value.contents = _} =
     in
     Current.Process.exec ~cwd:(Fpath.v cwd) ~stdin:"" ~cancellable:true ~job (cmd_update key)
 
-let pp f (key, { Value.cwd; Value.contents }) =
-  Fmt.pf f "%a@.@[cwd: %a@]@[%a@]" MyCmd.pp (cmd_update key) Fmt.string cwd Fmt.string contents
+let pp f (key, { Value.cwd }) =
+  Fmt.pf f "%a@.@[cwd: %a@]" MyCmd.pp (cmd_update key) Fmt.string cwd
 
 let auto_cancel = false
