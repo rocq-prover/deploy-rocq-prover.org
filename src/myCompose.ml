@@ -28,7 +28,7 @@ end
 module Outcome = Current.Unit
 
 let cmd args { Key.docker_context; name; hash = _; compose_file; env = _ } =
-  MyCmd.compose ~docker_context (["-f"; compose_file; "-p"; name ] @ args)
+  MyCmd.compose ~docker_context (["--build"; "--force-recreate"; "-f"; compose_file; "-p"; name ] @ args)
 
 let cmd_pull = cmd ["pull"]
 
