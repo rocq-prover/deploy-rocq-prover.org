@@ -33,6 +33,9 @@ let cmd_pull = cmd ["pull"]
 
 let cmd_update = cmd ["up"; "-d"; "--build"; "--force-recreate"]
 
+let cmd_prune key =
+  MyCmd.docker ~docker_context:key.Key.docker_context ["image"; "prune"; "-f"]
+
 let publish { pull } job key {Value.cwd} =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
   let p =
@@ -49,7 +52,9 @@ let publish { pull } job key {Value.cwd} =
       let s = Fmt.to_to_string (Fmt.list Fmt.string) (Array.to_list key.Key.env) in
       output_string envfile s; output_char envfile '\n'; close_out envfile
     in
-    Current.Process.exec ~cwd:(Fpath.v cwd) ~stdin:"" ~cancellable:true ~job (cmd_update key)
+    Current.Process.exec ~cwd:(Fpath.v cwd) ~stdin:"" ~cancellable:true ~job (cmd_update key) >>= function
+    | Error _ as e -> Lwt.return e
+    | Ok () -> Current.Process.exec ~cwd:(Fpath.v cwd) ~stdin:"" ~cancellable:true ~job (cmd_prune key)
 
 let pp f (key, { Value.cwd }) =
   Fmt.pf f "%a@.@[cwd: %a@]" MyCmd.pp (cmd_update key) Fmt.string cwd
