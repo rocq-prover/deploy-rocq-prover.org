@@ -34,7 +34,7 @@ let cmd_pull = cmd ["pull"]
 let cmd_update = cmd ["up"; "-d"; "--build"; "--force-recreate"]
 
 let cmd_prune key =
-  MyCmd.docker ~docker_context:key.Key.docker_context ["image"; "prune"; "-f"]
+  MyCmd.docker ~docker_context:key.Key.docker_context ["image"; "prune"; "-f"; "--filter"; "until=24h"]
 
 let publish { pull } job key {Value.cwd} =
   Current.Job.start job ~level:Current.Level.Dangerous >>= fun () ->
