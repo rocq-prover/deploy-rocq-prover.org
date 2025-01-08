@@ -75,7 +75,7 @@ let deploy (doc_repo, (head, src)) =
   let name = "rocqproverorg_www" in
   let path = Git.Commit.repo src in
   compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name
-    ~env:[| "DOC_PATH=" ^ Fpath.to_string doc_repo |]
+    ~env:[| "DOC_PATH=" ^ Fpath.to_string doc_repo; "GIT_COMMIT=" ^ Git.Commit.hash src |]
     ~hash:(Github.Api.Commit.hash head) ()
   |> check_run_status ~text:"Docker image built and deployed"
   |> Github.Api.CheckRun.set_status (Current.return head) deploy_status  
