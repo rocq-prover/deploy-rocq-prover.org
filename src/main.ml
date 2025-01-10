@@ -71,11 +71,11 @@ let compose ?pull ~compose_file ~hash ~env ~name ~cwd () =
   let> hash = Current.return hash in
   compose ?pull ~docker_context:None ~compose_file ~hash ~env ~name ~cwd ()
 
-let deploy (doc_repo, (head, src)) = 
-  let name = "rocqproverorg_www" in
+let deploy br port (doc_repo, (head, src)) = 
+  let name = "rocqproverorg_www_" ^ br in
   let path = Git.Commit.repo src in
   compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name
-    ~env:[| "DOC_PATH=" ^ Fpath.to_string doc_repo; "GIT_COMMIT=" ^ Git.Commit.hash src |]
+    ~env:[| "DOC_PATH=" ^ Fpath.to_string doc_repo; "GIT_COMMIT=" ^ Git.Commit.hash src; "LOCAL_PORT=" ^ port |]
     ~hash:(Github.Api.Commit.hash head) ()
   |> check_run_status ~text:"Docker image built and deployed"
   |> Github.Api.CheckRun.set_status (Current.return head) deploy_status  
@@ -110,7 +110,8 @@ let pipeline ~app () =
     Current.component "Determine if deployed" |>
     let** (_doc_repo, (headc, _) as ids) = (Current.pair rocq_doc_head headsrc) in
     match Github.Api.Commit.branch_name headc with
-    | Some "main" -> deploy ids
+    | Some ("main" as br) -> deploy br "8080" ids 
+    | Some ("staging" as br) -> deploy br "8010" ids
     | _ -> 
       Docker.build ~pool ~pull:true ~dockerfile (`Git src)
       |> check_run_status ~text:"Docker image built"
