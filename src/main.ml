@@ -30,7 +30,7 @@ let pool = Current.Pool.create ~label:"docker" 1
 let () = Prometheus_unix.Logging.init ()
 
 (* Link for GitHub statuses. *)
-let url = Uri.of_string "http://localhost:3000"
+let url = Uri.of_string "http://deploy.rocq-prover.org"
 
 (* Generate a Dockerfile for building all the opam packages in the build context. *)
 (* let dockerfile ~base =
@@ -47,18 +47,23 @@ let url = Uri.of_string "http://localhost:3000"
 
 (* let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) () *)
 
-(* Map from Current.state to CheckRunStatus *)
-let github_check_run_status_of_state ?text ?job_id = function
-  | Ok _              -> Github.Api.CheckRunStatus.v ?text ~url ?identifier:job_id (`Completed `Success) ~summary:"Passed"
-  | Error (`Active _) -> Github.Api.CheckRunStatus.v ?text ~url ?identifier:job_id `Queued
-  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ?text ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
+let image_building = "Docker image is building"
+let image_built deployment = "Docker image was built successfully" ^ (if deployment then " and deployed" else "")
+let image_failed = "Docker image failed to build"
 
-let check_run_status ?text x =
+(* Map from Current.state to CheckRunStatus *)
+let github_check_run_status_of_state ~deployment ?job_id = function
+  | Ok _              -> Github.Api.CheckRunStatus.v ~text:(image_built deployment) ~url ?identifier:job_id (`Completed `Success) 
+    ~summary:(if deployment then "Deployed" else "Built")
+  | Error (`Active _) -> Github.Api.CheckRunStatus.v ~text:image_building ~url ?identifier:job_id `Queued
+  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~text:image_failed ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
+
+let check_run_status ~deployment x =
   let+ md = Current.Analysis.metadata x
   and+ state = Current.state x in
   match md with
-  | Some { Current.Metadata.job_id; _ } -> github_check_run_status_of_state ?text ?job_id state
-  | None -> github_check_run_status_of_state ?text state
+  | Some { Current.Metadata.job_id; _ } -> github_check_run_status_of_state ~deployment ?job_id state
+  | None -> github_check_run_status_of_state ~deployment state
 
 module CC = Current_cache.Output(MyCompose)
 
@@ -77,7 +82,7 @@ let deploy br port (doc_repo, (head, src)) =
   compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name
     ~env:[| "DOC_PATH=" ^ Fpath.to_string doc_repo; "GIT_COMMIT=" ^ Git.Commit.hash src; "LOCAL_PORT=" ^ port |]
     ~hash:(Github.Api.Commit.hash head) ()
-  |> check_run_status ~text:"Docker image built and deployed"
+  |> check_run_status ~deployment:true
   |> Github.Api.CheckRun.set_status (Current.return head) deploy_status  
   
 let coq_doc_repo = Github.Repo_id.{ owner = "coq"; name = "doc" }
@@ -109,7 +114,7 @@ let pipeline ~installation () =
     | Some ("staging" as br) -> deploy br "8010" ids
     | _ -> 
       Docker.build ~pool ~pull:true ~dockerfile (`Git src)
-      |> check_run_status ~text:"Docker image built"
+      |> check_run_status ~deployment:false
       |> Github.Api.CheckRun.set_status head build_status
 
 (* Access control policy. *)
