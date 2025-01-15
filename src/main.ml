@@ -110,7 +110,7 @@ let pipeline ~app () =
     Current.component "Determine if deployed" |>
     let** (_doc_repo, (headc, _) as ids) = (Current.pair rocq_doc_head headsrc) in
     match Github.Api.Commit.branch_name headc with
-    | Some ("main" as br) -> deploy br "8080" ids 
+    | Some ("main" as br) -> deploy br "8000" ids 
     | Some ("staging" as br) -> deploy br "8010" ids
     | _ -> 
       Docker.build ~pool ~pull:true ~dockerfile (`Git src)
