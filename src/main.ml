@@ -64,7 +64,7 @@ let compose ?pull ~compose_file ~hash ~env ~name ~cwd () =
   let> hash = Current.return hash in
   compose ?pull ~docker_context:None ~compose_file ~hash ~env ~name ~cwd ()
 
-let deploy br port (doc_repo, (head, src)) = 
+let deploy br port doc_repo head src = 
   let name = "rocqproverorg_www_" ^ br in
   let path = Git.Commit.repo src in
   compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name
@@ -93,13 +93,20 @@ let pipeline ~installation () =
   let repo = rocq_prover_org_repo api in
     Github.Api.Repo.ci_refs ~staleness:(Duration.of_day 90) (Current.return repo)
     |> Current.list_iter (module Github.Api.Commit) @@ fun head ->
-    let src = Git.fetch (Current.map Github.Api.Commit.id head) in
-    let headsrc = Current.pair head src in
     Current.component "Determine if deployed" |>
-    let** (_doc_repo, (headc, _) as ids) = (Current.pair rocq_doc_head headsrc) in
-    match Github.Api.Commit.branch_name headc with
-    | Some ("main" as br) -> deploy br "8000" ids 
-    | Some ("staging" as br) -> deploy br "8010" ids
+    let** headc = head in
+    let br = Github.Api.Commit.branch_name headc in
+    (* Current.collapse ~key:"branch" ~value:(Option.value br ~default:"") ~input:head @@ *)
+    let src = Git.fetch (Current.return (Github.Api.Commit.id headc)) in
+    match br with
+    | Some ("main" as br) -> 
+      Current.component "Deploying on rocq-prover.org" |> 
+      let** (rocq_doc_head, src) = Current.pair rocq_doc_head src in
+      deploy br "8000" rocq_doc_head headc src
+    | Some ("staging" as br) -> 
+      Current.component "Deploying on staging.rocq-prover.org" |> 
+      let** (rocq_doc_head, src) = Current.pair rocq_doc_head src in
+      deploy br "8010" rocq_doc_head headc src
     | _ -> 
       Docker.build ~pool ~pull:true ~dockerfile (`Git src)
       |> check_run_status ~deployment:false
