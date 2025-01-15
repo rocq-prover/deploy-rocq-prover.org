@@ -89,13 +89,12 @@ let get_rocq_doc_head api =
   let local_head = Git.fetch (Current.map Github.Api.Commit.id doc_head) in
   Current.map Git.Commit.repo local_head
 
-let pipeline ~app () =
+let pipeline ~installation () =
   let dockerfile =
     match Fpath.of_string "./Dockerfile" with
     | Ok file -> Current.return (`File file)
     | Error (`Msg s) -> failwith s
   in
-  let installation = Github.App.installation app ~account:"coq" 1100037 in
   let api = Github.Installation.api installation in
   let rocq_doc_head = get_rocq_doc_head api in
   let repo = rocq_prover_org_repo api in
@@ -132,7 +131,8 @@ let authn github_auth =
 
 let main config mode github_auth app =
   Lwt_main.run begin
-    let engine = Current.Engine.create ~config (pipeline ~app) in
+    let installation = Github.App.installation app ~account:"coq" 59020361 in
+    let engine = Current.Engine.create ~config (pipeline ~installation) in
     let webhook_secret = Current_github.App.webhook_secret app in
     (* this example does not have support for looking up job_ids for a commit *)
     let get_job_ids = (fun ~owner:_owner ~name:_name ~hash:_hash -> []) in
