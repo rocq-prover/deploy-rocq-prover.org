@@ -16,7 +16,10 @@ let program_name = "deploy-rocq-prover_org"
 
 let build_status = "Docker image build for rocq-prover.org"
 
-let deploy_status = "Deployment on rocq-prover.org"
+let deploy_status br =
+  if br = "staging" then
+    "Deployment on staging.rocq-prover.org"
+  else "Deployment on rocq-prover.org"
 
 open Current.Syntax
 
@@ -31,21 +34,6 @@ let () = Prometheus_unix.Logging.init ()
 
 (* Link for GitHub statuses. *)
 let url = Uri.of_string "http://deploy.rocq-prover.org"
-
-(* Generate a Dockerfile for building all the opam packages in the build context. *)
-(* let dockerfile ~base =
-  let open Dockerfile in
-  from (Docker.Image.hash base) @@
-  run "sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam" @@
-  run "opam init --reinit -n" @@
-  workdir "/src" @@
-  add ~src:["*.opam"] ~dst:"/src/" () @@
-  run "opam install . --show-actions --deps-only -t" @@
-  copy ~src:["."] ~dst:"/src/" () @@
-  run "opam install -tv ."
-  |> string_of_t *)
-
-(* let weekly = Current_cache.Schedule.v ~valid_for:(Duration.of_day 7) () *)
 
 let image_building = "Docker image is building"
 let image_built deployment = "Docker image was built successfully" ^ (if deployment then " and deployed" else "")
@@ -83,7 +71,7 @@ let deploy br port (doc_repo, (head, src)) =
     ~env:[| "DOC_PATH=" ^ Fpath.to_string doc_repo; "GIT_COMMIT=" ^ Git.Commit.hash src; "LOCAL_PORT=" ^ port |]
     ~hash:(Github.Api.Commit.hash head) ()
   |> check_run_status ~deployment:true
-  |> Github.Api.CheckRun.set_status (Current.return head) deploy_status  
+  |> Github.Api.CheckRun.set_status (Current.return head) (deploy_status br)
   
 let coq_doc_repo = Github.Repo_id.{ owner = "coq"; name = "doc" }
 let rocq_prover_org_repo = Github.Repo_id.{ owner = "coq"; name = "rocq-prover.org" }
