@@ -117,18 +117,40 @@ let pipeline ~app () =
       |> check_run_status ~text:"Docker image built"
       |> Github.Api.CheckRun.set_status head build_status
 
-let main config mode app =
+(* Access control policy. *)
+let has_role user = function
+  | `Viewer | `Monitor -> true
+  | `Builder | `Admin -> (
+      match Option.map Current_web.User.id user with
+      | Some
+          ( "github:mattam82" | "github:tabareau" | "github:Zimmi48"
+          | "github:BastienSozeau" ) ->
+          true
+      | Some _ | None -> false)
+
+let login_route github_auth =
+  Routes.((s "login" /? nil) @--> Current_github.Auth.login github_auth)
+
+let authn github_auth =
+  Option.map Current_github.Auth.make_login_uri github_auth
+
+let main config mode github_auth app =
   Lwt_main.run begin
-    let has_role = Current_web.Site.allow_all in
     let engine = Current.Engine.create ~config (pipeline ~app) in
     let webhook_secret = Current_github.App.webhook_secret app in
     (* this example does not have support for looking up job_ids for a commit *)
     let get_job_ids = (fun ~owner:_owner ~name:_name ~hash:_hash -> []) in
+    let authn = authn github_auth in
+    let has_role =
+      if github_auth = None then Current_web.Site.allow_all
+      else has_role
+     in
     let routes =
       Routes.(s "webhooks" / s "github" /? nil @--> Github.webhook ~engine ~get_job_ids ~webhook_secret) ::
+      login_route github_auth ::
       Current_web.routes engine
     in
-    let site = Current_web.Site.(v ~has_role) ~name:program_name routes in
+    let site = Current_web.Site.(v ~has_role ?authn) ~name:program_name routes in
     Lwt.choose [
       Current.Engine.thread engine;
       Current_web.run ~mode site;
@@ -142,6 +164,7 @@ open Cmdliner
 let cmd =
   let doc = "Monitors rocq/rocq-prover.org and rocq/doc repositories and deploy the website." in
   let info = Cmd.info program_name ~doc in
-  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ Current_github.App.cmdliner))
+  Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ 
+    Current_github.Auth.cmdliner $ Current_github.App.cmdliner))
 
 let () = exit @@ Cmd.eval cmd
