@@ -16,7 +16,7 @@ let program_name = "deploy-rocq-prover_org"
 
 let build_status = "Docker image build for rocq-prover.org"
 
-let deploy_status = " Deployment on rocq-prover.org"
+let deploy_status = "Deployment on rocq-prover.org"
 
 open Current.Syntax
 
