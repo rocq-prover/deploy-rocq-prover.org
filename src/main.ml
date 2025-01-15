@@ -82,17 +82,12 @@ let deploy br port (doc_repo, (head, src)) =
   
 let coq_doc_repo = Github.Repo_id.{ owner = "coq"; name = "doc" }
 let rocq_prover_org_repo = Github.Repo_id.{ owner = "coq"; name = "rocq-prover.org" }
-let rocq_prover_org_repo installation : Github.Api.Repo.t = (installation, rocq_prover_org_repo)
+let rocq_prover_org_repo api : Github.Api.Repo.t = (api, rocq_prover_org_repo)
 
-let get_rocq_doc_head installation = 
-  Current.component "get_rocq_doc_head" |> 
-  let** api = Current.map Github.Installation.api installation in
+let get_rocq_doc_head api = 
   let doc_head = Github.Api.head_commit api coq_doc_repo in
   let local_head = Git.fetch (Current.map Github.Api.Commit.id doc_head) in
-  Current.map (fun commit -> Git.Commit.repo commit) local_head
-
-let get_rocq_prover_org_repo installation = 
-  Current.map (fun installation -> rocq_prover_org_repo (Github.Installation.api installation)) installation
+  Current.map Git.Commit.repo local_head
 
 let pipeline ~app () =
   let dockerfile =
@@ -100,10 +95,11 @@ let pipeline ~app () =
     | Ok file -> Current.return (`File file)
     | Error (`Msg s) -> failwith s
   in
-  Github.App.installations app |> Current.list_iter (module Github.Installation) @@ fun installation ->
-    let rocq_doc_head = get_rocq_doc_head installation in
-    let repo = get_rocq_prover_org_repo installation in
-    Github.Api.Repo.ci_refs ~staleness:(Duration.of_day 90) repo
+  let installation = Github.App.installation app ~account:"coq" 1100037 in
+  let api = Github.Installation.api installation in
+  let rocq_doc_head = get_rocq_doc_head api in
+  let repo = rocq_prover_org_repo api in
+    Github.Api.Repo.ci_refs ~staleness:(Duration.of_day 90) (Current.return repo)
     |> Current.list_iter (module Github.Api.Commit) @@ fun head ->
     let src = Git.fetch (Current.map Github.Api.Commit.id head) in
     let headsrc = Current.pair head src in
