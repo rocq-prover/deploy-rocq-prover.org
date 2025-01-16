@@ -49,7 +49,7 @@ let publish { pull } job key {Value.cwd} =
     Current.Job.log job "Working directory: %S" cwd;
     let () =
       let envfile = open_out (cwd ^ "/.env") in
-      let s = Fmt.to_to_string (Fmt.list Fmt.string) (Array.to_list key.Key.env) in
+      let s = String.concat "\n" (Array.to_list key.Key.env) in
       output_string envfile s; output_char envfile '\n'; close_out envfile
     in
     Current.Process.exec ~cwd:(Fpath.v cwd) ~stdin:"" ~cancellable:true ~job (cmd_update key) >>= function
