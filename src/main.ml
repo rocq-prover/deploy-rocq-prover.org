@@ -67,9 +67,15 @@ let compose ?pull ~compose_file ~hash ~env ~name ~cwd () =
 let deploy br port doc_repo head src = 
   let name = "rocqproverorg_www_" ^ br in
   let path = Git.Commit.repo src in
-  compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name
-    ~env:[| "DOC_PATH=" ^ Fpath.to_string doc_repo; "GIT_COMMIT=" ^ Git.Commit.hash src; "LOCAL_PORT=" ^ port |]
-    ~hash:(Github.Api.Commit.hash head) ()
+  let hash = Git.Commit.hash src in
+  let branch = Option.value (Github.Api.Commit.branch_name head) ~default:"" in
+  let env = [|
+    "DOC_PATH=" ^ Fpath.to_string doc_repo;
+    "GIT_COMMIT=" ^ hash;
+    "GIT_BRANCH=" ^ branch;
+    "LOCAL_PORT=" ^ port |]
+  in
+  compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name ~env ~hash ()
   |> check_run_status ~deployment:true
   |> Github.Api.CheckRun.set_status (Current.return head) (deploy_status br)
   
