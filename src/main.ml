@@ -16,6 +16,8 @@ let program_name = "deploy-rocq-prover_org"
 
 let build_status = "Docker image build for rocq-prover.org"
 
+let doc_fetch_status = "Deployment on rocq-prover.org"
+
 let deploy_status br =
   if br = "staging" then
     "Deployment on staging.rocq-prover.org"
@@ -53,6 +55,19 @@ let check_run_status ~deployment x =
   | Some { Current.Metadata.job_id; _ } -> github_check_run_status_of_state ~deployment ?job_id state
   | None -> github_check_run_status_of_state ~deployment state
 
+let github_check_doc_run_status_of_state ?job_id = function
+  | Ok _              -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id (`Completed `Success) ~summary:"Deployed"
+  | Error (`Active _) -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id `Queued
+  | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
+
+let check_doc_run_status x =
+  let+ md = Current.Analysis.metadata x
+  and+ state = Current.state x in
+  match md with
+  | Some { Current.Metadata.job_id; _ } -> github_check_doc_run_status_of_state ?job_id state
+  | None -> github_check_doc_run_status_of_state state
+  
+
 module CC = Current_cache.Output(MyCompose)
 
 let compose ?(pull=true) ~docker_context ~compose_file ~hash ~env ~name ~cwd () =
@@ -83,9 +98,11 @@ let coq_doc_repo = Github.Repo_id.{ owner = "coq"; name = "doc" }
 let rocq_prover_org_repo = Github.Repo_id.{ owner = "coq"; name = "rocq-prover.org" }
 let rocq_prover_org_repo api : Github.Api.Repo.t = (api, rocq_prover_org_repo)
 
-let get_rocq_doc_head api = 
-  let doc_head = Github.Api.head_commit api coq_doc_repo in
+let get_rocq_doc_head doc_head = 
   let local_head = Git.fetch (Current.map Github.Api.Commit.id doc_head) in
+  let status = check_doc_run_status local_head in
+  Current.component "rocq/doc repo" |> 
+  let** () = Github.Api.CheckRun.set_status doc_head doc_fetch_status status in
   Current.map Git.Commit.repo local_head
 
 let pipeline ~installation () =
@@ -95,7 +112,8 @@ let pipeline ~installation () =
     | Error (`Msg s) -> failwith s
   in
   let api = Github.Installation.api installation in
-  let rocq_doc_head = get_rocq_doc_head api in
+  let doc_head = Github.Api.head_commit api coq_doc_repo in
+  let rocq_doc_head = get_rocq_doc_head doc_head in
   let repo = rocq_prover_org_repo api in
     Github.Api.Repo.ci_refs ~staleness:(Duration.of_day 90) (Current.return repo)
     |> Current.list_iter (module Github.Api.Commit) @@ fun head ->
@@ -106,7 +124,7 @@ let pipeline ~installation () =
     let src = Git.fetch (Current.return (Github.Api.Commit.id headc)) in
     match br with
     | Some ("main" as br) -> 
-      Current.component "Deploying on rocq-prover.org" |> 
+      Current.component "deploying on rocq-prover.org" |> 
       let** (rocq_doc_head, src) = Current.pair rocq_doc_head src in
       deploy br "8000" rocq_doc_head headc src
     | Some ("staging" as br) -> 
