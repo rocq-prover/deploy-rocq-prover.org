@@ -170,7 +170,7 @@ let main config mode github_auth app =
       login_route github_auth ::
       Current_web.routes engine
     in
-    let site = Current_web.Site.(v ~has_role ?authn) ~name:program_name routes in
+    let site = Current_web.Site.(v ~has_role ~secure_cookies:true ?authn) ~name:program_name routes in
     Lwt.choose [
       Current.Engine.thread engine;
       Current_web.run ~mode site;
