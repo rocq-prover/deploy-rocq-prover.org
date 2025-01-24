@@ -37,11 +37,11 @@ jobs:
           opam-disable-sandboxing: true
 
       - name: Install system dependencies (Linux)
-        run: sudo apt update && sudo apt-get install libev-dev libonig-dev libcurl4-openssl-dev
+        run: sudo apt update && sudo apt-get install libev-dev libonig-dev libcurl4-openssl-dev capnp graphviz libffi
         if: runner.os == 'Linux'
 
       - name: Install system dependencies (macOS)
-        run: brew update && brew reinstall libev openssl@3 # Openssl is a workaround for https://github.com/ocaml/opam-repository/issues/19676
+        run: brew update && brew reinstall libev openssl@3 && brew install capnp graphviz libffi # Openssl is a workaround for https://github.com/ocaml/opam-repository/issues/19676
         if: runner.os == 'macOS'
 
       - name: Pin occurrent to its master branch
@@ -57,7 +57,7 @@ jobs:
         run: opam exec -- dune build @install
 
       - name: Run tests
-        run: opam exec -- make test
+        run: opam exec -- dune test
 
       - name: Format code
         run: opam exec -- dune build --auto-promote @fmt
