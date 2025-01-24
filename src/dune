@@ -2,13 +2,13 @@
  (public_name deploy-rocq-prover_org)
  (name main)
  (libraries
-   ppx_deriving_yojson.runtime
-    current
-    current_git
-    current_github
-    current_web
-    current_docker
-    lwt.unix
-    prometheus-app.unix)
-(preprocess
+  ppx_deriving_yojson.runtime
+  current
+  current_git
+  current_github
+  current_web
+  current_docker
+  lwt.unix
+  prometheus-app.unix)
+ (preprocess
   (pps ppx_deriving.std ppx_deriving_yojson)))
