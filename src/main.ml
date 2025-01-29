@@ -41,14 +41,16 @@ let branch_url = function
   | Main -> "rocq-prover.org"
   | Staging -> "staging.rocq-prover.org"
 
-let deploy_message ~text ?(default="") deployment = 
+let deploy_message ?(with_link=false) ~text ?(default="") deployment = 
   match deployment with 
-  | Some branch -> text ^ branch_url branch
+  | Some branch -> text ^
+    if with_link then "<a href=\"https://" ^ branch_url branch ^ "\">" ^ branch_url branch ^ "</a>" 
+    else branch_url branch
   | None -> default
 
 let deploy_status d = deploy_message ~text:"Deployment on " d
 
-let image_built deployment = "Docker image was built successfully" ^ deploy_message ~text:" and deployed on " deployment
+let image_built deployment = "Docker image was built successfully" ^ deploy_message ~with_link:true ~text:" and deployed on " deployment
 let image_failed = "Docker image failed to build"
 
 let deploy_branch_or_url = function
@@ -58,7 +60,7 @@ let deploy_branch_or_url = function
 (* Map from Current.state to CheckRunStatus *)
 let github_check_run_status_of_state ~deployment ?job_id = function
   | Ok _              -> Github.Api.CheckRunStatus.v ~text:(image_built deployment) ~url:(deploy_branch_or_url deployment) ?identifier:job_id (`Completed `Success) 
-    ~summary:(deploy_message ~text:"Deployed on " ~default:"Built" deployment)
+    ~summary:(deploy_message ~with_link:true ~text:"Deployed on " ~default:"Built" deployment)
   | Error (`Active _) -> Github.Api.CheckRunStatus.v ~text:image_building ~url ?identifier:job_id `Queued
   | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~text:image_failed ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
 
