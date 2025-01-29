@@ -43,7 +43,7 @@ let branch_url = function
 
 let deploy_message ~text ?(default="") deployment = 
   match deployment with 
-  | Some branch -> text ^ "<a href=\"https://" ^ branch_url branch ^ "\">" ^ branch_url branch ^ "</a>" 
+  | Some branch -> text ^ branch_url branch
   | None -> default
 
 let deploy_status d = deploy_message ~text:"Deployment on " d
