@@ -18,11 +18,6 @@ let build_status = "Docker image build for rocq-prover.org"
 
 let doc_fetch_status = "Deployment on rocq-prover.org"
 
-let deploy_status br =
-  if br = "staging" then
-    "Deployment on staging.rocq-prover.org"
-  else "Deployment on rocq-prover.org"
-
 open Current.Syntax
 
 module Git = Current_git
@@ -35,20 +30,39 @@ let pool = Current.Pool.create ~label:"docker" 1
 let () = Prometheus_unix.Logging.init ()
 
 (* Link for GitHub statuses. *)
-let url = Uri.of_string "http://deploy.rocq-prover.org"
+let url = Uri.of_string "https://deploy.rocq-prover.org"
+
+type deployment = 
+  | Main | Staging
 
 let image_building = "Docker image is building"
-let image_built deployment = "Docker image was built successfully" ^ (if deployment then " and deployed" else "")
+
+let branch_url = function
+  | Main -> "rocq-prover.org"
+  | Staging -> "staging.rocq-prover.org"
+
+let deploy_message ~text ?(default="") deployment = 
+  match deployment with 
+  | Some branch -> text ^ "<a href=\"https://" ^ branch_url branch ^ "\">" ^ branch_url branch ^ "</a>" 
+  | None -> default
+
+let deploy_status d = deploy_message ~text:"Deployment on " d
+
+let image_built deployment = "Docker image was built successfully" ^ deploy_message ~text:" and deployed on " deployment
 let image_failed = "Docker image failed to build"
+
+let deploy_branch_or_url = function
+  | None -> url
+  | Some branch -> Uri.of_string ("https://" ^ branch_url branch)
 
 (* Map from Current.state to CheckRunStatus *)
 let github_check_run_status_of_state ~deployment ?job_id = function
-  | Ok _              -> Github.Api.CheckRunStatus.v ~text:(image_built deployment) ~url ?identifier:job_id (`Completed `Success) 
-    ~summary:(if deployment then "Deployed" else "Built")
+  | Ok _              -> Github.Api.CheckRunStatus.v ~text:(image_built deployment) ~url:(deploy_branch_or_url deployment) ?identifier:job_id (`Completed `Success) 
+    ~summary:(deploy_message ~text:"Deployed on " ~default:"Built" deployment)
   | Error (`Active _) -> Github.Api.CheckRunStatus.v ~text:image_building ~url ?identifier:job_id `Queued
   | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~text:image_failed ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
 
-let check_run_status ~deployment x =
+let check_run_status ?deployment x =
   let+ md = Current.Analysis.metadata x
   and+ state = Current.state x in
   match md with
@@ -81,6 +95,10 @@ let compose ?pull ~compose_file ~hash ~env ~name ~cwd () =
 
 let deploy br port doc_repo head src = 
   let name = "rocqproverorg_www_" ^ br in
+  let deployment = match br with
+    | "main" -> Some Main 
+    | "staging" -> Some Staging 
+    | _ -> raise (Invalid_argument ("Unregognized deployment branch " ^ br)) in
   let path = Git.Commit.repo src in
   let hash = Git.Commit.hash src in
   let branch = Option.value (Github.Api.Commit.branch_name head) ~default:"" in
@@ -91,8 +109,8 @@ let deploy br port doc_repo head src =
     "LOCAL_PORT=" ^ port |]
   in
   compose ~cwd:(Fpath.to_string path) ~compose_file:"compose.yml" ~name ~env ~hash ()
-  |> check_run_status ~deployment:true
-  |> Github.Api.CheckRun.set_status (Current.return head) (deploy_status br)
+  |> check_run_status ?deployment
+  |> Github.Api.CheckRun.set_status (Current.return head) (deploy_status deployment)
   
 let coq_doc_repo = Github.Repo_id.{ owner = "coq"; name = "doc" }
 let rocq_prover_org_repo = Github.Repo_id.{ owner = "coq"; name = "rocq-prover.org" }
@@ -133,7 +151,7 @@ let pipeline ~installation () =
       deploy br "8010" rocq_doc_head headc src
     | _ -> 
       Docker.build ~pool ~pull:true ~dockerfile (`Git src)
-      |> check_run_status ~deployment:false
+      |> check_run_status
       |> Github.Api.CheckRun.set_status head build_status
 
 (* Access control policy. *)
