@@ -53,13 +53,9 @@ let deploy_status d = deploy_message ~text:"Deployment on " d
 let image_built deployment = "Docker image was built successfully" ^ deploy_message ~with_link:true ~text:" and deployed on " deployment
 let image_failed = "Docker image failed to build"
 
-let deploy_branch_or_url = function
-  | None -> url
-  | Some branch -> Uri.of_string ("https://" ^ branch_url branch)
-
 (* Map from Current.state to CheckRunStatus *)
 let github_check_run_status_of_state ~deployment ?job_id = function
-  | Ok _              -> Github.Api.CheckRunStatus.v ~text:(image_built deployment) ~url:(deploy_branch_or_url deployment) ?identifier:job_id (`Completed `Success) 
+  | Ok _              -> Github.Api.CheckRunStatus.v ~text:(image_built deployment) ~url ?identifier:job_id (`Completed `Success) 
     ~summary:(deploy_message ~with_link:true ~text:"Deployed on " ~default:"Built" deployment)
   | Error (`Active _) -> Github.Api.CheckRunStatus.v ~text:image_building ~url ?identifier:job_id `Queued
   | Error (`Msg m)    -> Github.Api.CheckRunStatus.v ~text:image_failed ~url ?identifier:job_id (`Completed (`Failure m)) ~summary:m
