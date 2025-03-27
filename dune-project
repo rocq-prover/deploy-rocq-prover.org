@@ -5,7 +5,7 @@
 (generate_opam_files true)
 
 (source
- (github coq/deploy-rocq-prover.org))
+ (github rocq-prover/deploy-rocq-prover.org))
 
 (authors "Matthieu Sozeau")
 
@@ -13,7 +13,7 @@
 
 (license MIT)
 
-(documentation https://github.com/coq/deploy-rocq-prover.org)
+(documentation https://github.com/rocq-prover/deploy-rocq-prover.org)
 
 (package
  (name deploy-rocq-prover_org)

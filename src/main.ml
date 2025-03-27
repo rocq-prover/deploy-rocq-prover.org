@@ -110,14 +110,14 @@ let deploy br port doc_repo head src =
   |> check_run_status ?deployment
   |> Github.Api.CheckRun.set_status (Current.return head) (deploy_status deployment)
   
-let coq_doc_repo = Github.Repo_id.{ owner = "coq"; name = "doc" }
-let rocq_prover_org_repo = Github.Repo_id.{ owner = "coq"; name = "rocq-prover.org" }
+let rocq_prover_doc_repo = Github.Repo_id.{ owner = "rocq-prover"; name = "doc" }
+let rocq_prover_org_repo = Github.Repo_id.{ owner = "rocq-prover"; name = "rocq-prover.org" }
 let rocq_prover_org_repo api : Github.Api.Repo.t = (api, rocq_prover_org_repo)
 
 let get_rocq_doc_head doc_head = 
   let local_head = Git.fetch (Current.map Github.Api.Commit.id doc_head) in
   let status = check_doc_run_status local_head in
-  Current.component "rocq/doc repo" |> 
+  Current.component "rocq-prover/doc repo" |> 
   let** () = Github.Api.CheckRun.set_status doc_head doc_fetch_status status in
   Current.map Git.Commit.repo local_head
 
@@ -128,7 +128,7 @@ let pipeline ~installation () =
     | Error (`Msg s) -> failwith s
   in
   let api = Github.Installation.api installation in
-  let doc_head = Github.Api.head_commit api coq_doc_repo in
+  let doc_head = Github.Api.head_commit api rocq_prover_doc_repo in
   let rocq_doc_head = get_rocq_doc_head doc_head in
   let repo = rocq_prover_org_repo api in
     Github.Api.Repo.ci_refs ~staleness:(Duration.of_day 90) (Current.return repo)
@@ -171,7 +171,7 @@ let authn github_auth =
 
 let main config mode github_auth app =
   Lwt_main.run begin
-    let installation = Github.App.installation app ~account:"coq" 59020361 in
+    let installation = Github.App.installation app ~account:"rocq-prover" 59020361 in
     let engine = Current.Engine.create ~config (pipeline ~installation) in
     let webhook_secret = Current_github.App.webhook_secret app in
     (* this example does not have support for looking up job_ids for a commit *)
@@ -198,7 +198,7 @@ let main config mode github_auth app =
 open Cmdliner
 
 let cmd =
-  let doc = "Monitors rocq/rocq-prover.org and rocq/doc repositories and deploy the website." in
+  let doc = "Monitors rocq-prover/rocq-prover.org and rocq-prover/doc repositories and deploy the website." in
   let info = Cmd.info program_name ~doc in
   Cmd.v info Term.(term_result (const main $ Current.Config.cmdliner $ Current_web.cmdliner $ 
     Current_github.Auth.cmdliner $ Current_github.App.cmdliner))

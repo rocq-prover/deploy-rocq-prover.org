@@ -1,4 +1,4 @@
-[OCurrent](https://www.ocurrent.org/) deployment pipeline for [rocq-prover.org](https://github.com/coq/rocq-prover.org).
+[OCurrent](https://www.ocurrent.org/) deployment pipeline for [rocq-prover.org](https://github.com/rocq-prover/rocq-prover.org).
 
 ## Building & Installing
 
@@ -27,7 +27,7 @@ and configured. You can then run it, adapting the following command:
 
 ```bash
 deploy-rocq-prover_org --github-app-id 1100037 \
-  --github-account-allowlist=coq \
+  --github-account-allowlist=rocq-prover \
   --github-private-key-file private_key  \
   --github-webhook-secret-file webhook_secret
 ```
